@@ -17,21 +17,21 @@ type Config struct {
 func New(target string, port int, origin string) (*Config, error) {
 	u, err := url.Parse(target)
 	if err != nil {
-		return nil, fmt.Errorf("target không hợp lệ: %w", err)
+		return nil, fmt.Errorf("invalid target: %w", err)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return nil, fmt.Errorf("target phải dạng http://host:port hoặc https://host:port, ví dụ http://localhost:8080 (nhận được %q)", target)
+		return nil, fmt.Errorf("target must be http://host:port or https://host:port, e.g. http://localhost:8080 (got %q)", target)
 	}
 	if u.Host == "" {
-		return nil, fmt.Errorf("target thiếu host, ví dụ http://localhost:8080 (nhận được %q)", target)
+		return nil, fmt.Errorf("target is missing a host, e.g. http://localhost:8080 (got %q)", target)
 	}
 
 	if port < 1 || port > 65535 {
-		return nil, fmt.Errorf("port phải trong khoảng 1-65535 (nhận được %d)", port)
+		return nil, fmt.Errorf("port must be between 1 and 65535 (got %d)", port)
 	}
 
 	if origin == "" {
-		return nil, fmt.Errorf(`origin không được rỗng — dùng "*" để cho phép tất cả, hoặc một địa chỉ cụ thể như 192.168.1.5`)
+		return nil, fmt.Errorf(`origin cannot be empty — use "*" to allow all, or a specific address like 192.168.1.5`)
 	}
 
 	return &Config{Target: u, Port: port, Origin: origin}, nil
