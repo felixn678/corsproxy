@@ -1,82 +1,82 @@
 # corsproxy
 
-CORS reverse proxy cho local development — test app trên điện thoại qua mạng LAN mà không dính lỗi CORS.
+CORS reverse proxy for local development — test your app on a phone over LAN without CORS errors.
 
-## Vấn đề
+## The problem
 
-Front-end chạy `localhost:3000`, backend chạy `localhost:8080` và chỉ allow origin `localhost:3000`. Mọi thứ ổn — cho đến khi bạn mở app trên điện thoại qua `http://192.168.1.5:3000`: mọi API call đều fail vì backend không allow origin `192.168.1.5`.
+Your front-end runs on `localhost:3000`, your backend on `localhost:8080` (CORS allows `localhost:3000` only). Everything works fine — until you open the app on your phone via `http://192.168.1.5:3000`: every API call fails because the backend doesn't allow origin `192.168.1.5`.
 
-## Giải pháp
+## The solution
 
 ```
 Phone ──→ http://192.168.1.5:3000  (front-end)
   │
   └─ API calls ──→ http://192.168.1.5:3001  (corsproxy)
-                        │  inject CORS headers,
-                        │  forward request
+                        │  injects CORS headers,
+                        │  forwards request
                         ▼
-                   http://localhost:8080  (backend, không cần sửa gì)
+                   http://localhost:8080  (backend, no changes needed)
 ```
 
-corsproxy đứng giữa: nhận request từ browser, forward đến backend (server-to-server nên không có khái niệm CORS), rồi trả response về kèm CORS headers hợp lệ.
+corsproxy sits in between: it receives requests from the browser, forwards them to the backend (server-to-server, so no CORS applies), then returns the response with valid CORS headers attached.
 
-## Cài đặt
+## Install
 
 ```bash
 go install github.com/felix-nguyen/corsproxy@latest
 ```
 
-## Sử dụng
+## Usage
 
-**Với flags:**
+**With flags:**
 
 ```bash
 corsproxy --target http://localhost:8080 --port 3001 --origin "*"
 ```
 
-**Interactive (không cần nhớ flags):**
+**Interactive (no flags needed):**
 
 ```bash
 corsproxy
-# → form hỏi từng bước: backend URL, port, origin
+# → prompts for backend URL, port, and allowed origin
 ```
 
-Khi chạy:
+When running:
 
 ```
-  corsproxy đang chạy
+  corsproxy is running
 
   Local:    http://localhost:3001
-  Network:  http://192.168.1.5:3001   ← dùng URL này trên phone
+  Network:  http://192.168.1.5:3001   ← use this URL on your phone
   Forward:  → http://localhost:8080
   Origin:   *
 
-  Ctrl+C để dừng
+  Press Ctrl+C to stop
 
 GET /api/users → 200 (23ms)
 POST /api/login → 401 (12ms)
 ```
 
-Trỏ API base URL của front-end sang `http://<lan-ip>:3001` là xong.
+Point your front-end's API base URL to `http://<lan-ip>:3001` and you're done.
 
 ### Flags
 
-| Flag | Default | Mô tả |
-|------|---------|-------|
-| `--target` | (bắt buộc) | Backend URL để forward đến |
-| `--port` | `3001` | Port proxy lắng nghe |
-| `--origin` | `*` | `*` = allow tất cả, hoặc IP/origin cụ thể (vd `192.168.1.5`) |
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--target` | (required) | Backend URL to forward requests to |
+| `--port` | `3001` | Port the proxy listens on |
+| `--origin` | `*` | `*` = allow all, or a specific IP/origin (e.g. `192.168.1.5`) |
 
-## Hoạt động thế nào
+## How it works
 
-- **Preflight (OPTIONS):** trả lời `204` ngay tại proxy, không forward — tránh backend redirect làm preflight fail.
-- **CORS headers của backend:** bị strip và thay bằng headers của proxy — tránh duplicate khiến browser reject.
-- **`--origin "*"`:** echo lại `Origin` của request thay vì literal `*`, nên `fetch` với `credentials: 'include'` (cookie auth) vẫn hoạt động.
-- **Backend chết:** trả `502` kèm CORS headers — bạn thấy lỗi 502 thật trong DevTools thay vì lỗi CORS đánh lạc hướng.
-- **WebSocket / SSE:** pass-through tự động.
+- **Preflight (OPTIONS):** answered with `204` at the proxy, not forwarded — prevents backend redirects from breaking preflight.
+- **Backend CORS headers:** stripped and replaced by the proxy's own headers — prevents duplicate `Access-Control-Allow-Origin` that browsers reject.
+- **`--origin "*"`:** echoes back the request's `Origin` header instead of a literal `*`, so `fetch` with `credentials: 'include'` (cookie auth) still works.
+- **Backend down:** returns `502` with CORS headers — you see a real 502 in DevTools instead of a misleading CORS error.
+- **WebSocket / SSE:** passed through automatically.
 
-## Giới hạn
+## Limitations
 
-- Chỉ dành cho **development**. Echo-origin + credentials là permissive có chủ đích — đừng chạy trên production.
-- Backend HTTPS với self-signed certificate chưa được hỗ trợ.
-- Cookie có flag `Secure` hoặc `SameSite=Strict` có thể không hoạt động khi truy cập qua HTTP/LAN IP — đó là hành vi của browser, không phải của proxy.
+- For **development only**. Echo-origin + credentials is intentionally permissive — do not run in production.
+- HTTPS backends with self-signed certificates are not yet supported.
+- Cookies with `Secure` or `SameSite=Strict` flags may not work when accessed via HTTP/LAN IP — this is browser behavior, not a proxy limitation.

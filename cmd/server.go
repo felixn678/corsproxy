@@ -24,7 +24,7 @@ func runServer(cfg *config.Config) error {
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
 	if err != nil {
 		if isAddrInUse(err) {
-			return fmt.Errorf("port %d đang được sử dụng — thử: corsproxy --target %s --port %d",
+			return fmt.Errorf("port %d is already in use — try: corsproxy --target %s --port %d",
 				cfg.Port, cfg.Target, cfg.Port+1)
 		}
 		return err
@@ -46,7 +46,7 @@ func runServer(cfg *config.Config) error {
 	case err := <-serveErr:
 		return err
 	case <-ctx.Done():
-		fmt.Println("\nĐang dừng, đợi các request đang chạy...")
+		fmt.Println("\nShutting down, waiting for in-flight requests...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		return server.Shutdown(shutdownCtx)
@@ -77,21 +77,21 @@ func warnIfTargetUnreachable(cfg *config.Config) {
 	}
 	conn, err := net.DialTimeout("tcp", host, 2*time.Second)
 	if err != nil {
-		fmt.Printf("⚠ Chưa kết nối được %s — proxy vẫn chạy, nhớ bật backend\n\n", cfg.Target)
+		fmt.Printf("⚠ Cannot reach %s — proxy will still start, but remember to start your backend\n\n", cfg.Target)
 		return
 	}
 	conn.Close()
 }
 
 func printBanner(cfg *config.Config) {
-	fmt.Println("\n  corsproxy đang chạy")
+	fmt.Println("\n  corsproxy is running")
 	fmt.Println()
 	fmt.Printf("  Local:    http://localhost:%d\n", cfg.Port)
 	if ip := netutil.LANIP(); ip != "" {
-		fmt.Printf("  Network:  http://%s:%d   ← dùng URL này trên phone\n", ip, cfg.Port)
+		fmt.Printf("  Network:  http://%s:%d   ← use this URL on your phone\n", ip, cfg.Port)
 	}
 	fmt.Printf("  Forward:  → %s\n", cfg.Target)
 	fmt.Printf("  Origin:   %s\n", cfg.Origin)
-	fmt.Println("\n  Ctrl+C để dừng")
+	fmt.Println("\n  Press Ctrl+C to stop")
 	fmt.Println()
 }
