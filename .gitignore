@@ -1,0 +1,11 @@
+# Binaries
+/corsproxy
+*.exe
+
+# Test artifacts
+*.test
+*.out
+
+# IDE
+.idea/
+.vscode/
