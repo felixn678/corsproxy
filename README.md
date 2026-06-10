@@ -77,6 +77,38 @@ Point your front-end's API base URL to `http://<lan-ip>:3001` and you're done.
 
 ## Limitations
 
-- For **development only**. Echo-origin + credentials is intentionally permissive — do not run in production.
-- HTTPS backends with self-signed certificates are not yet supported.
-- Cookies with `Secure` or `SameSite=Strict` flags may not work when accessed via HTTP/LAN IP — this is browser behavior, not a proxy limitation.
+corsproxy does exactly one thing: inject CORS headers for HTTP API calls to a
+single backend over the LAN. The cases below are out of scope — most stem from
+the fact that the proxy rewrites the **request target** only, never the response
+body or headers like `Location`.
+
+**Likely to hit you first:**
+
+- **HTTPS front-end → mixed content.** If your front-end is served over `https://`,
+  the browser blocks calls to the `http://` proxy. corsproxy serves HTTP only (no TLS).
+- **Absolute `localhost` URLs in responses.** Response bodies are not rewritten, so
+  a payload like `{"avatar": "http://localhost:8080/x.png"}` fails on the phone —
+  `localhost` there points to the phone itself.
+- **Redirects to absolute URLs.** A `302 Location: http://localhost:8080/login` is
+  not rewritten, so the browser follows it to a dead address.
+- **Cookies scoped to `localhost` or marked `Secure`.** `Domain=localhost` cookies
+  don't apply to the LAN IP; `Secure` cookies aren't sent over HTTP — both break
+  session/login.
+
+**Depends on your architecture:**
+
+- **Multiple backends.** Forwards to a single `--target` only — no path-based routing.
+  Run one instance per backend on different ports.
+- **Third-party OAuth flows.** Redirect URIs registered for `localhost:3000` mismatch
+  when accessed via the LAN IP; the provider rejects the callback.
+- **HTTPS backends with self-signed certificates.** Not yet supported (no `--insecure` flag).
+
+**Other:**
+
+- For **development only**. Echo-origin + credentials is intentionally permissive,
+  and there is no auth or rate limiting — anyone on the LAN can reach your backend
+  through the proxy.
+- gRPC / HTTP/2 (h2c) and backends that check the WebSocket handshake `Origin` may
+  not work.
+- LAN IP detection (UDP dial to `8.8.8.8`) can pick the wrong interface behind a VPN,
+  Docker network, or multi-NIC setup.
