@@ -15,10 +15,13 @@ import (
 	"github.com/felix-nguyen/corsproxy/internal/config"
 	"github.com/felix-nguyen/corsproxy/internal/netutil"
 	"github.com/felix-nguyen/corsproxy/internal/proxy"
+	"github.com/felix-nguyen/corsproxy/internal/session"
+	"github.com/google/uuid"
 )
 
-// runServer owns the server lifecycle: listen, banner, serve, graceful shutdown.
-func runServer(cfg *config.Config) error {
+// runServer owns the server lifecycle: listen, persist session, banner,
+// serve, graceful shutdown. name is the optional user-given session label.
+func runServer(cfg *config.Config, name string) error {
 	// Listen before printing anything so a port conflict surfaces immediately
 	// instead of after a success banner.
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
@@ -30,8 +33,12 @@ func runServer(cfg *config.Config) error {
 		return err
 	}
 
+	// Persist only after Listen succeeded: servers that failed to start must
+	// not pollute the resume store.
+	sess := persistSession(cfg, name)
+
 	warnIfTargetUnreachable(cfg)
-	printBanner(cfg)
+	printBanner(cfg, sess.Name)
 
 	server := &http.Server{Handler: proxy.New(cfg)}
 
@@ -49,8 +56,69 @@ func runServer(cfg *config.Config) error {
 		fmt.Println("\nShutting down, waiting for in-flight requests...")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		return server.Shutdown(shutdownCtx)
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			return err
+		}
+		// Mimic Claude Code: after a clean exit, show how to come back.
+		// Quote names containing spaces so the hint stays copy-paste-safe.
+		key := resumeKey(sess)
+		if strings.ContainsAny(key, " \t") {
+			key = fmt.Sprintf("%q", key)
+		}
+		fmt.Printf("\nResume later with:  corsproxy resume %s\n", key)
+		return nil
 	}
+}
+
+// resumeKey prefers the human-friendly name; falls back to the uuid.
+func resumeKey(sess session.Session) string {
+	if sess.Name != "" {
+		return sess.Name
+	}
+	return sess.ID
+}
+
+// persistSession records this server in the session store so it can be
+// resumed later. Persistence is a convenience layer: every failure here is a
+// warning, never a reason to stop the proxy from running.
+func persistSession(cfg *config.Config, name string) session.Session {
+	incoming := session.Session{
+		ID:         uuid.NewString(),
+		Name:       strings.TrimSpace(name),
+		Target:     cfg.Target.String(),
+		Port:       cfg.Port,
+		Origin:     cfg.Origin,
+		LastUsedAt: time.Now(),
+	}
+
+	path, err := session.DefaultPath()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ Cannot save session: %v\n", err)
+		return incoming
+	}
+	store := session.NewStore(path)
+
+	sessions, err := store.Load()
+	if err != nil {
+		if !errors.Is(err, session.ErrCorrupt) {
+			// Unreadable for another reason (permissions?) — do not risk
+			// overwriting a store we could not even read.
+			fmt.Fprintf(os.Stderr, "⚠ Cannot read session store: %v — this run will not be saved\n", err)
+			return incoming
+		}
+		// A corrupt store is recoverable — warn and start fresh rather than
+		// blocking the proxy over a convenience file.
+		fmt.Fprintf(os.Stderr, "⚠ %v — starting a fresh session store\n", err)
+		sessions = nil
+	}
+
+	// Upsert returns the session as stored: on dedupe it keeps the existing
+	// ID (and name, when none was given), which the resume hint relies on.
+	sessions, stored := session.Upsert(sessions, incoming)
+	if err := store.Save(sessions); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ Cannot save session: %v\n", err)
+	}
+	return stored
 }
 
 // isAddrInUse detects the "port already taken" case across platforms.
@@ -83,9 +151,12 @@ func warnIfTargetUnreachable(cfg *config.Config) {
 	conn.Close()
 }
 
-func printBanner(cfg *config.Config) {
+func printBanner(cfg *config.Config, name string) {
 	fmt.Println("\n  corsproxy is running")
 	fmt.Println()
+	if name != "" {
+		fmt.Printf("  Name:     %s\n", name)
+	}
 	fmt.Printf("  Local:    http://localhost:%d\n", cfg.Port)
 	if ip := netutil.LANIP(); ip != "" {
 		fmt.Printf("  Network:  http://%s:%d   ← use this URL on your phone\n", ip, cfg.Port)

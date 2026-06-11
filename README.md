@@ -31,14 +31,14 @@ go install github.com/felix-nguyen/corsproxy@latest
 **With flags:**
 
 ```bash
-corsproxy --target http://localhost:8080 --port 3001 --origin "*"
+corsproxy --target http://localhost:8080 --port 3001 --origin "*" --name myapi
 ```
 
 **Interactive (no flags needed):**
 
 ```bash
 corsproxy
-# → prompts for backend URL, port, and allowed origin
+# → prompts for backend URL, port, allowed origin, and an optional name
 ```
 
 When running:
@@ -46,6 +46,7 @@ When running:
 ```
   corsproxy is running
 
+  Name:     myapi
   Local:    http://localhost:3001
   Network:  http://192.168.1.5:3001   ← use this URL on your phone
   Forward:  → http://localhost:8080
@@ -59,6 +60,23 @@ POST /api/login → 401 (12ms)
 
 Point your front-end's API base URL to `http://<lan-ip>:3001` and you're done.
 
+### Resume a server
+
+Every started server is saved automatically. On exit, corsproxy prints how to
+get it back:
+
+```
+Resume later with:  corsproxy resume myapi
+```
+
+```bash
+corsproxy resume myapi    # restart by name (or uuid)
+corsproxy resume          # no argument → pick from a list of saved servers
+```
+
+Restarting the same target+port updates the saved entry instead of creating a
+duplicate, and keeps its name. Sessions live in `~/.config/corsproxy/sessions.json`.
+
 ### Flags
 
 | Flag | Default | Description |
@@ -66,6 +84,7 @@ Point your front-end's API base URL to `http://<lan-ip>:3001` and you're done.
 | `--target` | (required) | Backend URL to forward requests to |
 | `--port` | `3001` | Port the proxy listens on |
 | `--origin` | `*` | `*` = allow all, or a specific IP/origin (e.g. `192.168.1.5`) |
+| `--name` | (none) | Name this server so you can resume it later |
 
 ## How it works
 

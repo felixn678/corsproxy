@@ -11,7 +11,7 @@ import (
 // runInteractiveForm prompts for the proxy settings when --target is missing.
 // The pointers arrive pre-filled with flag defaults so the form shows them as
 // initial values (huh has no separate default mechanism).
-func runInteractiveForm(target, port, origin *string) error {
+func runInteractiveForm(target, port, origin, name *string) error {
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().
@@ -30,6 +30,10 @@ func runInteractiveForm(target, port, origin *string) error {
 				Description(`"*" = allow all, or a specific IP/origin (e.g. 192.168.1.5)`).
 				Value(origin).
 				Validate(validateOrigin),
+			huh.NewInput().
+				Title("Name (optional)").
+				Description("Label this server for resume (leave empty to use a generated id)").
+				Value(name),
 		),
 	)
 	return form.Run()

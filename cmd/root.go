@@ -14,6 +14,7 @@ var (
 	flagTarget string
 	flagPort   int
 	flagOrigin string
+	flagName   string
 )
 
 var rootCmd = &cobra.Command{
@@ -30,7 +31,7 @@ Run without flags to enter interactive mode.`,
 		// port round-trips through a string and is re-validated below.
 		if flagTarget == "" {
 			portStr := strconv.Itoa(flagPort)
-			if err := runInteractiveForm(&flagTarget, &portStr, &flagOrigin); err != nil {
+			if err := runInteractiveForm(&flagTarget, &portStr, &flagOrigin, &flagName); err != nil {
 				return fmt.Errorf("%w\n(no TTY? use flags instead: corsproxy --target http://localhost:8080)", err)
 			}
 			flagPort, _ = strconv.Atoi(portStr) // form already validated the number
@@ -40,7 +41,7 @@ Run without flags to enter interactive mode.`,
 		if err != nil {
 			return err
 		}
-		return runServer(cfg)
+		return runServer(cfg, flagName)
 	},
 }
 
@@ -48,6 +49,7 @@ func init() {
 	rootCmd.Flags().StringVar(&flagTarget, "target", "", "backend URL to forward to, e.g. http://localhost:8080")
 	rootCmd.Flags().IntVar(&flagPort, "port", 3001, "port the proxy listens on")
 	rootCmd.Flags().StringVar(&flagOrigin, "origin", "*", `allowed origin ("*" = all, or a specific IP/origin)`)
+	rootCmd.Flags().StringVar(&flagName, "name", "", "name this server so you can resume it later")
 }
 
 // Execute runs the root command; main() exits non-zero on error.
